@@ -13,7 +13,7 @@ interface User {
 }
 
 const BASE_URL = "https://challenge.sunvoy.com";
-const SESSION_FILE = path.join(__dirname, '../sessions/session.json');
+const SESSION_FILE = path.join(__dirname, '.session.json');
 
 let client: ReturnType<typeof axios.create>;
 
@@ -114,6 +114,41 @@ export const login = async (username: string, password: string): Promise<void> =
     }
 };
 
+const getUserList = async (): Promise<User[]>=>{
+    
+  const browser = await puppeteer.launch({headless: true});
+  const page = await browser.newPage();
+  console.log("entered the getuser")
+  try{
+    const savedCookie = await loadSession();
+    if (savedCookie && await checkSessionValid(savedCookie)) {
+        console.log('[+] Reusing existing session');
+        client = axios.create({ headers: { Cookie: savedCookie } });
+        return [];
+    }
+    await page.goto(`${BASE_URL}/list`, { waitUntil: 'networkidle2' });
+
+        const users: User[] = await page.evaluate(() => {
+            const cards = Array.from(document.querySelectorAll('div.bg-white.p-4.rounded-lg.shadow'));
+            return cards.map(card => {
+                const name = card.querySelector('h3.font-semibold')?.textContent?.trim() || '';
+                const email = card.querySelector('p.text-gray-600')?.textContent?.trim() || '';
+                const idText = card.querySelector('p.text-sm.text-gray-500')?.textContent?.trim() || '';
+                const id = idText.replace('ID:', '').trim();
+                return { name, email, id };
+            });
+        });
+        console.log(users, 'yaeh hai aaj k lakshman .')
+        return users;
+    } catch (err) {
+        console.error('[-] Puppeteer scrape error:', (err as Error).message);
+        return [];
+    } finally {
+        await browser.close();
+    }
+  }
+
+
 
 const username = process.env.EMAIL;     // demo@example.org
 const password = process.env.PASSWORD;  // test
@@ -123,3 +158,4 @@ if (!username || !password) {
 }
 
 login(username, password);
+getUserList()
